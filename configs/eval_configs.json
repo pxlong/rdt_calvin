@@ -1,7 +1,7 @@
 {
-    "pretrained_rdt_model_path": "/data/rdt/checkpoints/rdt-1b-finetuned-1202/checkpoint-22000",
-    "pretrained_text_encoder_path": "/data/google/t5-v1_1-xxl",
-    "pretrained_vision_model_path": "/data/google/siglip-so400m-patch14-384",
+    "pretrained_rdt_model_path": "/mnt/petrelfs/longpinxin/ckpts/rdt-finetune-1b-1203/checkpoint-28000",
+    "pretrained_text_encoder_path": "/mnt/petrelfs/longpinxin/data/huggingface/google/t5-v1_1-xxl",
+    "pretrained_vision_model_path": "/mnt/petrelfs/longpinxin/data/huggingface/google/siglip-so400m-patch14-384",
     "model_config_path": "./configs/base.yaml",
     "camera_names": ["cam_high", "cam_right_wrist", "cam_left_wrist"],
     "episode_len": 10000,

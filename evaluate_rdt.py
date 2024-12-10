@@ -206,7 +206,10 @@ def rollout(
         img_list = []
 
     for step in range(EP_LEN):
-        action = model.step(obs, lang_annotation)
+        if step % model.config["chunk_size"] == 0:
+            action_buffer = model.step(obs, lang_annotation).copy()
+
+        action = action_buffer[step % model.config["chunk_size"]]
         obs, _, _, current_info = env.step(action)
         if debug:
             img_copy = copy.deepcopy(obs["rgb_obs"]["rgb_static"])
