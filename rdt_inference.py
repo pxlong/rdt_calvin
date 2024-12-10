@@ -26,16 +26,16 @@ class RDTCalvinEvaluation(CalvinBaseModel):
     def __init__(self, args):
 
         self.config = {
-            "episode_len": args.max_publish_step,
-            "state_dim": args.state_dim,
-            "chunk_size": args.chunk_size,
-            "camera_names": args.camera_names,
+            "episode_len": args["episode_len"],
+            "state_dim": args["state_dim"],
+            "chunk_size": args["chunk_size"],
+            "camera_names": args["camera_names"]
         }
 
         self.args = args
+        print(f"evaluation configs: {self.args}")
         self._load_model_config()
 
-        # self.prev_action = None
         self.observation_window = None
         self.lang_embeddings = None
         self.policy = None
@@ -43,37 +43,37 @@ class RDTCalvinEvaluation(CalvinBaseModel):
         self._make_poliy()
 
     def _load_model_config(self):
-        model_config_path = current_dir + self.args.model_config_path
+        model_config_path = self.args["model_config_path"]
         print(f"model_config_path: {model_config_path}")
         with open(model_config_path, "r") as fp:
-            model_config = yaml.safe_load(fp)
-        self.args.model_config = model_config
+            self.model_config = yaml.safe_load(fp)
 
-    def _interpolate_action(self, curr_action):
-        steps = np.concatenate(
-            (
-                np.array(self.args.arm_steps_length),
-                np.array(self.args.arm_steps_length),
-            ),
-            axis=0,
-        )
-        diff = np.abs(curr_action - self.prev_action)
-        step = np.ceil(diff / steps).astype(int)
-        step = np.max(step)
-        if step <= 1:
-            return curr_action[np.newaxis, :]
-        new_actions = np.linspace(self.prev_action, curr_action, step + 1)
-        return new_actions[1:]
+    # def _interpolate_action(self, curr_action):
+    #     steps = np.concatenate(
+    #         (
+    #             np.array(self.args.arm_steps_length),
+    #             np.array(self.args.arm_steps_length),
+    #         ),
+    #         axis=0,
+    #     )
+    #     diff = np.abs(curr_action - self.prev_action)
+    #     step = np.ceil(diff / steps).astype(int)
+    #     step = np.max(step)
+    #     if step <= 1:
+    #         return curr_action[np.newaxis, :]
+    #     new_actions = np.linspace(self.prev_action, curr_action, step + 1)
+    #     return new_actions[1:]
 
     def _make_poliy(self):
-        print(f"Loading RDT model from: {self.args.pretrained_rdt_model_path}")
+        print("loading rdt model from: ")
+        print(self.args["pretrained_rdt_model_path"])
         self.policy = create_model(
-            args=self.args.model_config,
+            args=self.model_config,
             dtype=torch.bfloat16,
-            pretrained=self.args.pretrained_rdt_model_path,
-            pretrained_text_encoder_name_or_path=self.args.pretrained_text_encoder_path,
-            pretrained_vision_encoder_name_or_path=self.args.pretrained_vision_model_path,
-            control_frequency=self.args.ctrl_freq,
+            pretrained=self.args["pretrained_rdt_model_path"],
+            pretrained_text_encoder_name_or_path=self.args["pretrained_text_encoder_path"],
+            pretrained_vision_encoder_name_or_path=self.args["pretrained_vision_model_path"],
+            control_frequency=self.args["ctrl_freq"],
         )
 
     def _process_obs(self, obs):
@@ -92,7 +92,7 @@ class RDTCalvinEvaluation(CalvinBaseModel):
             )
 
         rob_obs = obs["robot_obs"]
-        # rob_obs = torch.from_numpy(rob_obs).float().cuda()
+        rob_obs = torch.from_numpy(rob_obs).float().cuda()
 
         self.observation_window.append(
             {
@@ -105,14 +105,15 @@ class RDTCalvinEvaluation(CalvinBaseModel):
             }
         )
 
-    def _process_action(self, action):
-        if self.args.use_actions_interpolation:
-            processed_actions = self._interpolate_action(action)
-        else:
-            processed_actions = action[np.newaxis, :]
+    def _process_action(self, actions):
+        # if self.args.use_actions_interpolation:
+        #     processed_actions = self._interpolate_action(action)
+        # else:
+        # actions = np.squeeze(actions)
+        # print(f"actions shape: {actions.shape}, {actions}")
+        actions[..., 6] = np.where(actions[..., 6] > 0, 1, -1)
 
-        self.prev_action = action.copy()
-        return processed_actions
+        return actions
 
     def reset(self):
         self.observation_window = None
@@ -134,7 +135,9 @@ class RDTCalvinEvaluation(CalvinBaseModel):
         images = [
             PImage.fromarray(arr) if arr is not None else None for arr in image_arrs
         ]
-        proprio = self.observation_window[-1]["rob_obs"].unsqueeze(0)
+        proprio = self.observation_window[-1]["proprio"].unsqueeze(0)
+        # print(f"proprio shape: {proprio.shape}")
+        # proprio = np.expand_dims(self.observation_window[-1]["proprio"], axis=0)
         self.lang_embeddings = self.policy.encode_instruction(goal)
 
         # time_start = time.time()
@@ -146,6 +149,7 @@ class RDTCalvinEvaluation(CalvinBaseModel):
             .cpu()
             .numpy()
         )
+        actions = self._process_action(actions)
         # print(f"Model inference time: {time.time() - time_start} s")
 
         return actions

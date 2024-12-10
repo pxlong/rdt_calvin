@@ -13,6 +13,7 @@
 
 import math
 from collections import OrderedDict
+from typing import Optional
 
 import numpy as np
 import torch
@@ -100,7 +101,8 @@ class CrossAttention(nn.Module):
         self.proj_drop = nn.Dropout(proj_drop)
     
     def forward(self, x: torch.Tensor, c: torch.Tensor, 
-                mask: torch.Tensor | None = None) -> torch.Tensor:
+                # mask: torch.Tensor | None = None) -> torch.Tensor:
+                mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         B, N, C = x.shape
         _, L, _ = c.shape
         q = self.q(x).reshape(B, N, self.num_heads, self.head_dim).permute(0, 2, 1, 3)

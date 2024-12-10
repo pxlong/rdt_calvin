@@ -217,24 +217,31 @@ class RoboticDiffusionTransformerModel(object):
 
     def _convert_ee_pose_to_6d(self, input):
         input = input.cpu().numpy()
-        eef_pos = input[..., :3]
-        eef_ang = convert_euler_to_rotation_matrix(input[..., 3:6])
+        # print(f"input shape: {input.shape}")
+        eef_pos = input[:, :, :3]
+        # print(f"eef_pose shape: {eef_pos.shape}")
+        # assert False
+        eef_ang = convert_euler_to_rotation_matrix(input[:, :, 3:6].reshape(-1, 3))
+        # print(f"input shape: {input.shape}")
         eef_ang = compute_ortho6d_from_rotation_matrix(eef_ang)
-        gripper_open = (input[..., 14] + 1) / 2
+        eef_ang = eef_ang.reshape(1, 1, -1)
+        gripper_open = (input[:, :, 14] + 1) / 2
         gripper_open = gripper_open[..., np.newaxis]
         # qpos = input[:, 7:14]
         # print(
-        #     f"eef_pos shape: {eef_pos.shape}, eef_ang shape: {eef_ang.shape}, gripper_open shape: {gripper_open.shape}, qpos shape: {qpos.shape}"
+        #     f"eef_pos shape: {eef_pos.shape}, eef_ang shape: {eef_ang.shape}, gripper_open shape: {gripper_open.shape}"
         # )
-        output = np.concatenate([gripper_open, eef_pos, eef_ang], axis=1)
+        output = np.concatenate([gripper_open, eef_pos, eef_ang], axis=2)
         output = torch.from_numpy(output).float().cuda()
         return output
 
     def _convert_6d_to_ee_pose(self, input):
-        input = input.cpu().numpy()
-        eef_pos = input[..., :3]
-        eef_ang = compute_rotation_matrix_from_ortho6d(input[..., 3:9])
+        input = input.float().cpu().numpy()
+        # print(f"action input shape: {input.shape}")
+        eef_pos = input[:, :, :3]
+        eef_ang = compute_rotation_matrix_from_ortho6d(np.squeeze(input[:, :, 3:9]))
         eef_ang = convert_rotation_matrix_to_euler(eef_ang)
+        eef_ang = np.expand_dims(eef_ang, axis=0)
         gripper_open = input[..., 9] * 2 - 1
         gripper_open = gripper_open[..., np.newaxis]
         # print(
@@ -242,7 +249,7 @@ class RoboticDiffusionTransformerModel(object):
         #     eef_ang shape: {eef_ang.shape}, \
         #     gripper_open shape: {gripper_open.shape}"
         # )
-        output = np.concatenate([gripper_open, eef_pos, eef_ang], axis=1)
+        output = np.concatenate([gripper_open, eef_pos, eef_ang], axis=2)
         output = torch.from_numpy(output).float().cuda()
         return output
 
@@ -259,7 +266,7 @@ class RoboticDiffusionTransformerModel(object):
         """
 
         B, N, _ = obs.shape
-        # print(f"ee_pose shape: {ee_pose.shape}")
+        # print(f"obs shape: {obs.shape}")
         state = torch.zeros(
             (B, N, self.args["model"]["state_token_dim"]),
             device=obs.device,

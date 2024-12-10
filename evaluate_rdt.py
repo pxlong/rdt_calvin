@@ -16,20 +16,14 @@ sys.path.insert(0, Path(__file__).absolute().parents[2].as_posix())
 
 from calvin_agent.evaluation.multistep_sequences import get_sequences
 from calvin_agent.evaluation.utils import (
-    collect_plan,
     count_success,
-    create_tsne,
     get_default_model_and_env,
     get_env_state_for_initial_condition,
     get_log_dir,
     join_vis_lang,
     print_and_save,
 )
-from calvin_agent.utils.utils import (
-    get_all_checkpoints,
-    get_checkpoints_for_epochs,
-    get_last_checkpoint,
-)
+
 import hydra
 import numpy as np
 from omegaconf import OmegaConf
@@ -193,23 +187,31 @@ def rollout(
     Run the actual rollout on one subtask (which is one natural language instruction).
     """
     if debug:
-        print(f"{subtask} ", end="")
+        print(f"{subtask} ")
         time.sleep(0.5)
 
     obs = env.get_obs()
     # get lang annotation for subtask
     lang_annotation = val_annotations[subtask][0]
-    print(f"lang_annotation: {lang_annotation} ", end="")
+    print(f"lang_annotation: {lang_annotation}")
     model.reset()
     start_info = env.get_info()
     if debug:
         img_list = []
 
     for step in range(EP_LEN):
-        action = model.step(obs, lang_annotation)
+        # action = model.step(obs, lang_annotation)
+        if step % model.config["chunk_size"] == 0:
+            action_buffer = model.step(obs, lang_annotation).copy()
+            # print(f"get action from rdt model, step-{step}")
+
+        # print(f"step: {step}")
+        action = action_buffer[step % model.config["chunk_size"]]
+        # print(f"action: {action}")
+
         obs, _, _, current_info = env.step(action)
         if debug:
-            img_copy = copy.deepcopy(obs["rgb_obs"]["rgb_static"])
+            img_copy = copy.deepcopy(obs["rgb_obs"]["rgb_gripper"])
             img_list.append(img_copy)
 
         # check if current step solves a task
@@ -218,7 +220,7 @@ def rollout(
         )
         if len(current_task_info) > 0:
             if debug:
-                print(colored("success", "green"), end=" ")
+                print(colored("success", "green"))
                 clip = ImageSequenceClip(img_list, fps=10)
                 clip.write_gif(
                     os.path.join(eval_dir, f"{seq_i}-{subtask_i}-{subtask}-succ.gif"),
@@ -227,7 +229,7 @@ def rollout(
             return True
 
     if debug:
-        print(colored("fail", "red"), end=" ")
+        print(colored("fail", "red"))
         clip = ImageSequenceClip(img_list, fps=10)
         clip.write_gif(
             os.path.join(eval_dir, f"{seq_i}-{subtask_i}-{subtask}-fail.gif"), fps=10
@@ -242,14 +244,14 @@ def main():
     )
     parser.add_argument(
         "--dataset_path",
-        default="task_D_D",
+        default="/mnt/petrelfs/longpinxin/data/calvin",
         type=str,
         help="Path to the dataset root directory.",
     )
     parser.add_argument(
         "--config_path",
         type=str,
-        default="./configs.json",
+        default="/mnt/petrelfs/longpinxin/ws/rdt_calvin/configs/eval_configs.json",
         help="Path to the config file",
     )
     parser.add_argument(
@@ -259,12 +261,10 @@ def main():
     )
     parser.add_argument(
         "--eval_dir",
-        default="/media/longpinxin/DATA/px/calvin/evaluation",
+        default="/mnt/petrelfs/longpinxin/ws/rdt_calvin/results/run5",
         type=str,
         help="Where to log the evaluation results.",
     )
-
-    parser.add_argument("--device", default=0, type=int, help="CUDA device")
     args = parser.parse_args()
 
     with open(args.config_path, "r") as f:
