@@ -207,11 +207,14 @@ def rollout(
 
         # print(f"step: {step}")
         action = action_buffer[step % model.config["chunk_size"]]
-        # print(f"action: {action}")
+        # print(f"[evaluate] action.shape: {action.shape}, {action}")
+
+        action = (action[..., :3], action[..., 3:6], np.array(action[..., 6]).reshape(1))
+        # print(f"[evaluate] action: {action}")
 
         obs, _, _, current_info = env.step(action)
         if debug:
-            img_copy = copy.deepcopy(obs["rgb_obs"]["rgb_gripper"])
+            img_copy = copy.deepcopy(obs["rgb_obs"]["rgb_static"])
             img_list.append(img_copy)
 
         # check if current step solves a task
@@ -221,18 +224,19 @@ def rollout(
         if len(current_task_info) > 0:
             if debug:
                 print(colored("success", "green"))
-                clip = ImageSequenceClip(img_list, fps=10)
-                clip.write_gif(
-                    os.path.join(eval_dir, f"{seq_i}-{subtask_i}-{subtask}-succ.gif"),
-                    fps=10,
+                clip = ImageSequenceClip(img_list, fps=15)
+                clip.write_videofile(
+                    os.path.join(eval_dir, f"{seq_i}-{subtask_i}-{subtask}-succ.mp4"),
+                    codec="libx264", fps=15
                 )
             return True
 
     if debug:
         print(colored("fail", "red"))
-        clip = ImageSequenceClip(img_list, fps=10)
-        clip.write_gif(
-            os.path.join(eval_dir, f"{seq_i}-{subtask_i}-{subtask}-fail.gif"), fps=10
+        clip = ImageSequenceClip(img_list, fps=15)
+        clip.write_videofile(
+            os.path.join(eval_dir, f"{seq_i}-{subtask_i}-{subtask}-fail.mp4"), 
+            codec="libx264", fps=15
         )
     return False
 
@@ -261,7 +265,7 @@ def main():
     )
     parser.add_argument(
         "--eval_dir",
-        default="/mnt/petrelfs/longpinxin/ws/rdt_calvin/results/run5",
+        default="/mnt/petrelfs/longpinxin/ws/rdt_calvin/results/run7",
         type=str,
         help="Where to log the evaluation results.",
     )

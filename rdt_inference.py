@@ -111,8 +111,11 @@ class RDTCalvinEvaluation(CalvinBaseModel):
         # else:
         # actions = np.squeeze(actions)
         # print(f"actions shape: {actions.shape}, {actions}")
-        actions[..., 6] = np.where(actions[..., 6] > 0, 1, -1)
+        actions[..., -1] = np.where(actions[..., -1] > 0, 1, -1)
+        # eef_position = actions[..., :3]
+        # eef_euler = actions[..., 3:6]
 
+        # return (eef_position, eef_euler, gripper_action)
         return actions
 
     def reset(self):
@@ -150,6 +153,7 @@ class RDTCalvinEvaluation(CalvinBaseModel):
             .numpy()
         )
         actions = self._process_action(actions)
+        # print(f"[step] action: {actions[0]}")
         # print(f"Model inference time: {time.time() - time_start} s")
 
         return actions

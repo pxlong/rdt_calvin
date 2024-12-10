@@ -238,18 +238,18 @@ class RoboticDiffusionTransformerModel(object):
     def _convert_6d_to_ee_pose(self, input):
         input = input.float().cpu().numpy()
         # print(f"action input shape: {input.shape}")
-        eef_pos = input[:, :, :3]
-        eef_ang = compute_rotation_matrix_from_ortho6d(np.squeeze(input[:, :, 3:9]))
+        gripper_open = input[:, :, 0] * 2 - 1
+        gripper_open = gripper_open[..., np.newaxis]
+        eef_pos = input[:, :, 1:4]
+        eef_ang = compute_rotation_matrix_from_ortho6d(np.squeeze(input[:, :, 4:10]))
         eef_ang = convert_rotation_matrix_to_euler(eef_ang)
         eef_ang = np.expand_dims(eef_ang, axis=0)
-        gripper_open = input[..., 9] * 2 - 1
-        gripper_open = gripper_open[..., np.newaxis]
         # print(
         #     f"eef_pos shape: {eef_pos.shape}, \
         #     eef_ang shape: {eef_ang.shape}, \
         #     gripper_open shape: {gripper_open.shape}"
         # )
-        output = np.concatenate([gripper_open, eef_pos, eef_ang], axis=2)
+        output = np.concatenate([eef_pos, eef_ang, gripper_open], axis=2)
         output = torch.from_numpy(output).float().cuda()
         return output
 
@@ -297,12 +297,13 @@ class RoboticDiffusionTransformerModel(object):
             ee_pose (torch.Tensor): The unformatted robot eef pose.
                 ([B, N, (7+1)*2]).
         """
-        # print(f"[raw] unformat action: {action}")
+        # print(f"[raw] unformat action: {action[:, 0, :]}")
         action_indices = CALVIN_STATE_INDICES
         ee_pose = action[:, :, action_indices]
-        # print(f"[before] unformat action to joints: {ee_pose}")
+        # print(f"[before] unformat action to joints: {ee_pose[:, 0, :]}")
 
         ee_pose = self._convert_6d_to_ee_pose(ee_pose)
+        # print(f"[after] action: {ee_pose[:, 0, :]}")
 
         return ee_pose
 
