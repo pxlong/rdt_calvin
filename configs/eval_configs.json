@@ -1,5 +1,5 @@
 {
-    "pretrained_rdt_model_path": "/mnt/petrelfs/longpinxin/ckpts/rdt-finetune-1b-1203/checkpoint-26000",
+    "pretrained_rdt_model_path": "/mnt/petrelfs/longpinxin/ckpts/rdt-finetune-1b-1203/checkpoint-45000",
     "pretrained_text_encoder_path": "google/t5-v1_1-xxl",
     "pretrained_vision_model_path": "google/siglip-so400m-patch14-384",
     "model_config_path": "/mnt/petrelfs/longpinxin/ws/rdt_calvin/configs/base.yaml",

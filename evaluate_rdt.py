@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 CALVIN_ROOT = os.environ["CALVIN_ROOT"]
 
 EP_LEN = 360
-NUM_SEQUENCES = 10
+NUM_SEQUENCES = 1000
 
 
 def get_epoch(checkpoint):
@@ -87,8 +87,8 @@ def evaluate_policy(
 
     eval_dir = get_log_dir(eval_dir)
     eval_sequences = get_sequences(NUM_SEQUENCES)
-    print(f"eval_sequences type: {type(eval_sequences)}")
-    print(f"eval_sequences: {eval_sequences}")
+    # print(f"eval_sequences type: {type(eval_sequences)}")
+    # print(f"eval_sequences: {eval_sequences}")
 
     results = []
     if not debug:
@@ -224,19 +224,19 @@ def rollout(
         if len(current_task_info) > 0:
             if debug:
                 print(colored("success", "green"))
-                clip = ImageSequenceClip(img_list, fps=15)
+                clip = ImageSequenceClip(img_list, fps=30)
                 clip.write_videofile(
                     os.path.join(eval_dir, f"{seq_i}-{subtask_i}-{subtask}-succ.mp4"),
-                    codec="libx264", fps=15
+                    codec="libx264", fps=30
                 )
             return True
 
     if debug:
         print(colored("fail", "red"))
-        clip = ImageSequenceClip(img_list, fps=15)
+        clip = ImageSequenceClip(img_list, fps=30)
         clip.write_videofile(
             os.path.join(eval_dir, f"{seq_i}-{subtask_i}-{subtask}-fail.mp4"), 
-            codec="libx264", fps=15
+            codec="libx264", fps=30
         )
     return False
 
@@ -265,7 +265,7 @@ def main():
     )
     parser.add_argument(
         "--eval_dir",
-        default="/mnt/petrelfs/longpinxin/ws/rdt_calvin/results/run7",
+        default="run0",
         type=str,
         help="Where to log the evaluation results.",
     )
@@ -278,13 +278,15 @@ def main():
     model = RDTCalvinEvaluation(config)
     env = make_env(args.dataset_path)
 
-    if not os.path.exists(args.eval_dir):
-        os.makedirs(args.eval_dir, exist_ok=True)
-    eval_sr_path = os.path.join(args.eval_dir, "success_rate.txt")
-    eval_result_path = os.path.join(args.eval_dir, "results.txt")
+    default_eval_dir = "/mnt/petrelfs/longpinxin/ws/rdt_calvin/results"
+    eval_dir = os.path.join(default_eval_dir, args.eval_dir) 
+    if not os.path.exists(eval_dir):
+        os.makedirs(eval_dir, exist_ok=True)
+    eval_sr_path = os.path.join(eval_dir, "success_rate.txt")
+    eval_result_path = os.path.join(eval_dir, "results.txt")
 
     evaluate_policy(
-        model, env, eval_sr_path, eval_result_path, args.eval_dir, debug=args.debug
+        model, env, eval_sr_path, eval_result_path, eval_dir, debug=args.debug
     )
 
 
