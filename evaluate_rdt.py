@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 CALVIN_ROOT = os.environ["CALVIN_ROOT"]
 
 EP_LEN = 360
-NUM_SEQUENCES = 1000
+# NUM_SEQUENCES = 1000
 
 
 def get_epoch(checkpoint):
@@ -59,7 +59,7 @@ def make_env(dataset_path):
 
 
 def evaluate_policy(
-    model, env, eval_sr_path, eval_result_path, eval_dir=None, debug=False
+    model, env, num_seqs, eval_sr_path, eval_result_path, eval_dir=None, debug=False
 ):
     """
     Run this function to evaluate a model on the CALVIN challenge.
@@ -86,7 +86,7 @@ def evaluate_policy(
     )
 
     eval_dir = get_log_dir(eval_dir)
-    eval_sequences = get_sequences(NUM_SEQUENCES)
+    eval_sequences = get_sequences(num_seqs)
     # print(f"eval_sequences type: {type(eval_sequences)}")
     # print(f"eval_sequences: {eval_sequences}")
 
@@ -97,7 +97,7 @@ def evaluate_policy(
     seq_i = 0
     for initial_state, eval_sequence in eval_sequences:
         print()
-        print(f"\nSequence {seq_i + 1}/{NUM_SEQUENCES}")
+        print(f"\nSequence {seq_i + 1}/{num_seqs}")
         # print(f"initial_state: {initial_state}, eval_sequence: {eval_sequence}")
         result = evaluate_sequence(
             env,
@@ -115,7 +115,7 @@ def evaluate_policy(
         if not debug:
             success_list = count_success(results)
             with open(eval_sr_path, "a") as f:
-                line = f"{seq_i}/{NUM_SEQUENCES}: "
+                line = f"{seq_i}/{num_seqs}: "
                 for sr in success_list:
                     line += f"{sr:.3f} | "
                 seq_i += 1
@@ -203,7 +203,7 @@ def rollout(
         # action = model.step(obs, lang_annotation)
         if step % model.config["chunk_size"] == 0:
             action_buffer = model.step(obs, lang_annotation).copy()
-            # print(f"get action from rdt model, step-{step}")
+            print(f"rdt inferencing, step-{step}")
 
         # print(f"step: {step}")
         action = action_buffer[step % model.config["chunk_size"]]
@@ -269,6 +269,12 @@ def main():
         type=str,
         help="Where to log the evaluation results.",
     )
+    parser.add_argument(
+        "--num_seqs",
+        default=10,
+        type=int,
+        help="num_sequences to evaluate",
+    )
     args = parser.parse_args()
 
     with open(args.config_path, "r") as f:
@@ -286,7 +292,9 @@ def main():
     eval_result_path = os.path.join(eval_dir, "results.txt")
 
     evaluate_policy(
-        model, env, eval_sr_path, eval_result_path, eval_dir, debug=args.debug
+        model, env, args.num_seqs, 
+        eval_sr_path, eval_result_path, eval_dir, 
+        debug=args.debug
     )
 
 
