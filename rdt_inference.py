@@ -37,7 +37,6 @@ class RDTCalvinEvaluation(CalvinBaseModel):
         self._load_model_config()
 
         self.observation_window = None
-        self.lang_embeddings = None
         self.policy = None
 
         self._make_poliy()
@@ -76,7 +75,7 @@ class RDTCalvinEvaluation(CalvinBaseModel):
             control_frequency=self.args["ctrl_freq"],
         )
 
-    def _process_obs(self, obs):
+    def process_obs(self, obs):
         if self.observation_window is None:
             self.observation_window = deque(maxlen=2)
 
@@ -123,8 +122,6 @@ class RDTCalvinEvaluation(CalvinBaseModel):
         self.policy.reset()
 
     def step(self, obs, goal):
-        self._process_obs(obs)
-
         image_arrs = [
             self.observation_window[-2]["images"][self.config["camera_names"][0]],
             self.observation_window[-2]["images"][self.config["camera_names"][1]],
@@ -141,12 +138,12 @@ class RDTCalvinEvaluation(CalvinBaseModel):
         proprio = self.observation_window[-1]["proprio"].unsqueeze(0)
         # print(f"proprio shape: {proprio.shape}")
         # proprio = np.expand_dims(self.observation_window[-1]["proprio"], axis=0)
-        self.lang_embeddings = self.policy.encode_instruction(goal)
+        lang_embeddings = self.policy.encode_instruction(goal)
 
         # time_start = time.time()
         actions = (
             self.policy.step(
-                proprio=proprio, images=images, text_embeds=self.lang_embeddings
+                proprio=proprio, images=images, text_embeds=lang_embeddings
             )
             .squeeze(0)
             .cpu()

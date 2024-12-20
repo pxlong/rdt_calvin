@@ -39,7 +39,9 @@ logger = logging.getLogger(__name__)
 
 CALVIN_ROOT = os.environ["CALVIN_ROOT"]
 
-EP_LEN = 360
+# EP_LEN = 360
+EP_LEN = 20
+# NUM_SEQUENCES = 1000
 
 
 def get_epoch(checkpoint):
@@ -155,11 +157,10 @@ def evaluate_sequence(
     env.reset(robot_obs=robot_obs, scene_obs=scene_obs)
     success_counter = 0
 
-    print(f"Evaluating sequence: {' -> '.join(eval_sequence)}")
-    # if debug:
-        # time.sleep(1)
-        # print(f"Evaluating sequence: {' -> '.join(eval_sequence)}")
-        # print("Subtask: ", end="")
+    if debug:
+        time.sleep(1)
+        print(f"Evaluating sequence: {' -> '.join(eval_sequence)}")
+        print("Subtask: ", end="")
 
     for subtask_i, subtask in enumerate(eval_sequence):
         success = rollout(
@@ -186,14 +187,14 @@ def rollout(
     """
     Run the actual rollout on one subtask (which is one natural language instruction).
     """
-    # if debug:
-    #     print(f"{subtask} ")
-    #     time.sleep(0.1)
+    if debug:
+        print(f"{subtask} ")
+        time.sleep(0.5)
 
     obs = env.get_obs()
     # get lang annotation for subtask
     lang_annotation = val_annotations[subtask][0]
-    print(f"subtask: {subtask}, lang_annotation: {lang_annotation}")
+    print(f"lang_annotation: {lang_annotation}")
     model.reset()
     model.process_obs(obs)
 
@@ -202,37 +203,44 @@ def rollout(
         img_list = []
 
     for step in range(EP_LEN):
-        # print(f"step: {step}")
-        if step % model.config["chunk_size"] == 0:
-            action_buffer = model.step(obs, lang_annotation).copy()
-            # print(f"rdt inferencing, step-{step}")
+        # action = model.step(obs, lang_annotation)
+        # if step % model.config["chunk_size"] == 0:
+        action_buffer = model.step(obs, lang_annotation).copy()
+        # print(f"action_buffer shape: {action_buffer.shape}")
+        # print(f"rdt inferencing, step-{step}")
 
-        action = action_buffer[step % model.config["chunk_size"]]
-        # print(f"[evaluate] action.shape: {action.shape}, {action}")
+        # action = action_buffer[step % model.config["chunk_size"]]
+        actions = action_buffer[::4, :]
+        # print(f"actions shape: {actions.shape}")
 
-        action = (action[..., :3], action[..., 3:6], np.array(action[..., 6]).reshape(1))
-        # print(f"[evaluate] action: {action}")
+        for idx in range(actions.shape[0]):
+            action = actions[idx]
+            action = (action[..., :3], action[..., 3:6], np.array(action[..., 6]).reshape(1))
+            # print(f"[evaluate] action: {action}")
 
-        obs, _, _, current_info = env.step(action)
-        model.process_obs(obs)
+            obs, _, _, current_info = env.step(action)
 
-        if debug:
-            img_copy = copy.deepcopy(obs["rgb_obs"]["rgb_static"])
-            img_list.append(img_copy)
+            # update obs for policy
+            model.process_obs(obs)
 
-        # check if current step solves a task
-        current_task_info = task_oracle.get_task_info_for_set(
-            start_info, current_info, {subtask}
-        )
-        if len(current_task_info) > 0:
+            # for saving videos
             if debug:
-                print(colored("success", "green"))
-                clip = ImageSequenceClip(img_list, fps=30)
-                clip.write_videofile(
-                    os.path.join(eval_dir, f"{seq_i}-{subtask_i}-{subtask}-succ.mp4"),
-                    codec="libx264", fps=30
-                )
-            return True
+                img_copy = copy.deepcopy(obs["rgb_obs"]["rgb_static"])
+                img_list.append(img_copy)
+
+            # check if current step solves a task
+            current_task_info = task_oracle.get_task_info_for_set(
+                start_info, current_info, {subtask}
+            )
+            if len(current_task_info) > 0:
+                if debug:
+                    print(colored("success", "green"))
+                    clip = ImageSequenceClip(img_list, fps=30)
+                    clip.write_videofile(
+                        os.path.join(eval_dir, f"{seq_i}-{subtask_i}-{subtask}-succ.mp4"),
+                        codec="libx264", fps=30
+                    )
+                return True
 
     if debug:
         print(colored("fail", "red"))
