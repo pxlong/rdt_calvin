@@ -38,6 +38,8 @@ class RDTCalvinEvaluation(CalvinBaseModel):
 
         self.observation_window = None
         self.policy = None
+        self.prev_instr = None
+        self.lang_embeddings = None
 
         self._make_poliy()
 
@@ -138,18 +140,21 @@ class RDTCalvinEvaluation(CalvinBaseModel):
         proprio = self.observation_window[-1]["proprio"].unsqueeze(0)
         # print(f"proprio shape: {proprio.shape}")
         # proprio = np.expand_dims(self.observation_window[-1]["proprio"], axis=0)
-        lang_embeddings = self.policy.encode_instruction(goal)
+        if goal != self.prev_instr:
+            self.lang_embeddings = self.policy.encode_instruction(goal)
 
         # time_start = time.time()
         actions = (
             self.policy.step(
-                proprio=proprio, images=images, text_embeds=lang_embeddings
+                proprio=proprio, images=images, text_embeds=self.lang_embeddings
             )
             .squeeze(0)
             .cpu()
             .numpy()
         )
         actions = self._process_action(actions)
+
+        self.prev_instr = goal
         # print(f"[step] action: {actions[0]}")
         # print(f"Model inference time: {time.time() - time_start} s")
 

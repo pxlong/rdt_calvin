@@ -40,6 +40,28 @@ logger = logging.getLogger(__name__)
 CALVIN_ROOT = os.environ["CALVIN_ROOT"]
 
 EP_LEN = 360
+REPLACEMENTS = {
+    "_": " ",
+    "1f": " ",
+    "4f": " ",
+    "-": " ",
+    "50": " ",
+    "55": " ",
+    "56": " ",
+}
+
+def clean_task_instruction(task_instruction: str, replacements: dict) -> str:
+    """
+    Clean up the natural language task instruction.
+    """
+    # Apply replacements to the string
+    for old, new in replacements.items():
+        task_instruction = task_instruction.replace(old, new)
+
+    # Strip leading and trailing spaces
+    cleaned_task_instruction = task_instruction.strip()
+
+    return cleaned_task_instruction
 
 
 def get_epoch(checkpoint):
@@ -58,7 +80,7 @@ def make_env(dataset_path):
 
 
 def evaluate_policy(
-    model, env, num_seqs, eval_sr_path, eval_result_path, eval_dir=None, debug=False
+    model, env, tasks, num_seqs, eval_sr_path, eval_result_path, eval_dir=None, debug=False
 ):
     """
     Run this function to evaluate a model on the CALVIN challenge.
@@ -76,9 +98,9 @@ def evaluate_policy(
     """
     # conf_dir = Path(__file__).absolute().parents[2] / "conf"
     conf_dir = Path(f"{CALVIN_ROOT}/calvin_models") / "conf"
-    task_cfg = OmegaConf.load(
-        conf_dir / "callbacks/rollout/tasks/new_playtable_tasks.yaml"
-    )
+    task_cfg = OmegaConf.load(Path(
+        conf_dir / f"callbacks/rollout/tasks/{tasks}"
+    ))
     task_oracle = hydra.utils.instantiate(task_cfg)
     val_annotations = OmegaConf.load(
         conf_dir / "annotations/new_playtable_validation.yaml"
@@ -193,7 +215,11 @@ def rollout(
     obs = env.get_obs()
     # get lang annotation for subtask
     lang_annotation = val_annotations[subtask][0]
-    print(f"subtask: {subtask}, lang_annotation: {lang_annotation}")
+    instruction = clean_task_instruction(lang_annotation, REPLACEMENTS)
+    print(f"subtask: {subtask}, lang_ann: {lang_annotation}, instr: {instruction}")
+    if instruction != lang_annotation:
+        print(f"*** instruction: {instruction}, lang_ann: {lang_annotation}")
+
     model.reset()
     model.process_obs(obs)
 
@@ -201,13 +227,15 @@ def rollout(
     if debug:
         img_list = []
 
+    action_buffer = []
     for step in range(EP_LEN):
-        # print(f"step: {step}")
-        if step % model.config["chunk_size"] == 0:
-            action_buffer = model.step(obs, lang_annotation).copy()
-            # print(f"rdt inferencing, step-{step}")
+        action_idx = step % model.config["chunk_size"]
+        # print(f"action_idx: {action_idx}")
+        if action_idx == 0:
+            action_buffer = model.step(obs, instruction).copy()
+            # print(f"rdt inferencing, action shape: {action_buffer.shape}")
 
-        action = action_buffer[step % model.config["chunk_size"]]
+        action = action_buffer[action_idx]
         # print(f"[evaluate] action.shape: {action.shape}, {action}")
 
         action = (action[..., :3], action[..., 3:6], np.array(action[..., 6]).reshape(1))
@@ -290,6 +318,12 @@ def main():
         default="checkpoint-1000",
         help="checkpoint to evaluate",
     )
+    parser.add_argument(
+        "--task",
+        type=str,
+        default="default",
+        help="tasks to evaluate",
+    )
     args = parser.parse_args()
 
     with open(args.config_path, "r") as f:
@@ -309,8 +343,14 @@ def main():
     eval_sr_path = os.path.join(eval_dir, "success_rate.txt")
     eval_result_path = os.path.join(eval_dir, "results.txt")
 
+    if args.task == "default":
+        tasks = "new_playtable_tasks.yaml"
+    else:
+        tasks = args.task + "_tasks.yaml"
+    print(f"tasks to evaluate: {tasks}")
+
     evaluate_policy(
-        model, env, args.num_seqs, 
+        model, env, tasks, args.num_seqs, 
         eval_sr_path, eval_result_path, eval_dir, 
         debug=args.debug
     )
